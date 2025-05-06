@@ -12,7 +12,9 @@ from standard_script_setup import *
 from CIME.utils import copyifnewer, run_bld_cmd_ensure_logging, expect
 from CIME.case import Case
 from CIME.build import get_standard_makefile_args
+from CIME.Servers.wget import WGET
 import glob
+import zipfile
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +61,24 @@ def buildlib(bldroot, installpath, case):
     casetools = case.get_value("CASETOOLS")
 
     # Path to the torch library - usually installed with pyTorch
-    torch_library = os.getenv("TORCH_LIBRARY")
-    expect(torch_library,"TORCH_LIBRARY not set.\n")
+    torch_dir = os.getenv("TORCH_DIR")
+    if not torch_dir:
+        logger.info("Environment variable TORCH_DIR not set, will attempt to use the nightly build from pytorch")
+        wget_server = WGET("https://download.pytorch.org")
+        zfile = os.path.join(installpath,"libtorch-shared-with-deps-latest.zip")
+        if not os.path.isfile(zfile):
+            wget_server.getfile("libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip", zfile)
+        with zipfile.ZipFile(zfile, 'r') as zip_ref:
+            zip_ref.extractall(installpath)
+        torch_dir =  os.path.join(installpath,"libtorch")
+        os.environ["TORCH_DIR"] = torch_dir
+
+    expect(torch_dir,"TORCH_DIR not set in environment.\n")
+    torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
+
     expect(os.path.isfile(torch_library),"TORCH_LIBRARY {} not found.\n".format(torch_library))
-    
-    cmake_opts = '"-DTORCH_LIBRARY={} "'.format(torch_library)
+
+    cmake_opts = '"-DCMAKE_PREFIX_PATH={} -DTORCH_LIBRARY={} "'.format(torch_dir, torch_library)
 
     gmake_vars = (
         "CASEROOT={caseroot} COMP_NAME=FTorch "
