@@ -62,10 +62,12 @@ def buildlib(bldroot, installpath, case):
 
     # Path to the torch library - usually installed with pyTorch
     torch_dir = case.get_value("TORCH_DIR")
-    if not torch_dir:
+    torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
+    if not os.path.isfile(torch_library):
         torch_dir =  os.path.join(installpath,"libtorch")
-        if not os.path.isdir(torch_dir):
-            logger.info("Environment variable TORCH_DIR not set, will attempt to use the nightly build from pytorch")
+        torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
+        if not os.path.isfile(torch_library):
+            logger.info("libtorch not found, will attempt to use the nightly build from pytorch")
             wget_server = WGET("https://download.pytorch.org")
             zfile = os.path.join(installpath,"libtorch-shared-with-deps-latest.zip")
             if not os.path.isfile(zfile):
@@ -75,15 +77,16 @@ def buildlib(bldroot, installpath, case):
         case.set_value("TORCH_DIR", torch_dir)
 
     expect(torch_dir,"TORCH_DIR not set in XML.\n")
-    torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
+    if case.get_value("USE_FTORCH"):
+        use_ftorch = "ON"
+    else:
+        use_ftorch = "OFF"
 
-    expect(os.path.isfile(torch_library),"TORCH_LIBRARY {} not found.\n".format(torch_library))
-
-    cmake_opts = '"-DCMAKE_PREFIX_PATH={} -DTORCH_LIBRARY={} "'.format(torch_dir, torch_library)
+    cmake_opts = '"-DCMAKE_PREFIX_PATH={} -DTORCH_LIBRARY={} -DUSE_FTORCH={} "'.format(torch_dir, torch_library, use_ftorch)
 
     gmake_vars = (
         "CASEROOT={caseroot} COMP_NAME=FTorch "
-        "FTORCH_SRC_DIR={ftorch_dir}/src "
+        "FTORCH_SRC_DIR={ftorch_dir} "
         "USER_CMAKE_OPTS={cmake_opts} "
         "CASETOOLS={casetools} ".format(
             caseroot=caseroot,
@@ -95,7 +98,7 @@ def buildlib(bldroot, installpath, case):
     stdargs = get_standard_makefile_args(case, shared_lib=True)
 
     gmake_opts = (
-        "{bldroot}/Makefile -C {bldroot} "
+        "FTMakefile -C {bldroot} "
         " {gmake_vars} {stdargs} -f {casetools}/Makefile".format(
             bldroot=bldroot, gmake_vars=gmake_vars, casetools=casetools, stdargs=stdargs
         )
@@ -105,7 +108,8 @@ def buildlib(bldroot, installpath, case):
 
     # This runs the FTorch cmake command from the cime case Makefile
     cmd = "{} {}".format(gmake_cmd, gmake_opts)
-    run_bld_cmd_ensure_logging(cmd, logger, from_dir=bldroot)
+    if not os.path.isfile(os.path.join(bldroot,"Makefile")):
+        run_bld_cmd_ensure_logging(cmd, logger, from_dir=bldroot)
 
     # This runs the pio make command from the cmake generated Makefile
     run_bld_cmd_ensure_logging(
