@@ -61,19 +61,20 @@ def buildlib(bldroot, installpath, case):
     casetools = case.get_value("CASETOOLS")
 
     # Path to the torch library - usually installed with pyTorch
-    torch_dir = os.getenv("TORCH_DIR")
+    torch_dir = case.get_value("TORCH_DIR")
     if not torch_dir:
-        logger.info("Environment variable TORCH_DIR not set, will attempt to use the nightly build from pytorch")
-        wget_server = WGET("https://download.pytorch.org")
-        zfile = os.path.join(installpath,"libtorch-shared-with-deps-latest.zip")
-        if not os.path.isfile(zfile):
-            wget_server.getfile("libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip", zfile)
-        with zipfile.ZipFile(zfile, 'r') as zip_ref:
-            zip_ref.extractall(installpath)
         torch_dir =  os.path.join(installpath,"libtorch")
-        os.environ["TORCH_DIR"] = torch_dir
+        if not os.path.isdir(torch_dir):
+            logger.info("Environment variable TORCH_DIR not set, will attempt to use the nightly build from pytorch")
+            wget_server = WGET("https://download.pytorch.org")
+            zfile = os.path.join(installpath,"libtorch-shared-with-deps-latest.zip")
+            if not os.path.isfile(zfile):
+                wget_server.getfile("libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip", zfile)
+            with zipfile.ZipFile(zfile, 'r') as zip_ref:
+                zip_ref.extractall(installpath)
+        case.set_value("TORCH_DIR", torch_dir)
 
-    expect(torch_dir,"TORCH_DIR not set in environment.\n")
+    expect(torch_dir,"TORCH_DIR not set in XML.\n")
     torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
 
     expect(os.path.isfile(torch_library),"TORCH_LIBRARY {} not found.\n".format(torch_library))
