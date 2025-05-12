@@ -18,15 +18,14 @@ if("${USE_FTORCH}" STREQUAL "ON")
   set_target_properties(ftorch PROPERTIES
     LINKER_LANGUAGE Fortran  
   )
- 
+  # Expose that module directory to anything that links against ftorch
+  target_include_directories(ftorch
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/external/ftorch>
+  )
 else()
   message("Building FTorch wrapper only ${USE_FTORCH}")
   add_library(ftorch_wrapper SHARED  FTorch_cesm_interface.F90)
 endif()
 
-# Expose that module directory to anything that links against ftorch
-target_include_directories(ftorch
-    PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/external/ftorch>
-)
 
