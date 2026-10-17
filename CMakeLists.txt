@@ -11,8 +11,9 @@ if("${USE_FTORCH}" STREQUAL "ON")
   add_subdirectory(src)
   add_library(ftorch_wrapper SHARED  FTorch_cesm_interface.F90)
   target_link_libraries(ftorch_wrapper PRIVATE ftorch)
+  # Place ftorch.mod in modules/ to match INCLDIR += -I$(FTORCH_DIR)/modules in cime/CIME/Tools/Makefile
   set_target_properties(ftorch PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/external/ftorch
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules
   )
   # The cpp file in this library will cause cmake to prefer the cxx compiler for the link step, we override and use fc
   set_target_properties(ftorch PROPERTIES
@@ -21,7 +22,7 @@ if("${USE_FTORCH}" STREQUAL "ON")
   # Expose that module directory to anything that links against ftorch
   target_include_directories(ftorch
     PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/external/ftorch>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/modules>
   )
 else()
   message("Building FTorch wrapper only ${USE_FTORCH}")
