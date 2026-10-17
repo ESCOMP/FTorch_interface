@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
+set(CMAKE_PROJECT_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/enable_shared_libs.cmake")
 project(FTorch_CESM_WRAPPER LANGUAGES Fortran CXX)
 enable_language(Fortran)
 # Force use of Fortran compiler for linking
