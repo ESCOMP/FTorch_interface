@@ -12,11 +12,28 @@ from standard_script_setup import *
 from CIME.utils import copyifnewer, run_bld_cmd_ensure_logging, expect
 from CIME.case import Case
 from CIME.build import get_standard_makefile_args
-from CIME.Servers.wget import WGET
-import glob
-import zipfile
 
 logger = logging.getLogger(__name__)
+
+# Actionable error message displayed when USE_FTORCH=TRUE but LibTorch cannot be found
+_MISSING_TORCH_MSG = """
+PyTorch / LibTorch library not found (USE_FTORCH=TRUE).
+  Configured TORCH_DIR (required): {torch_dir}
+
+  On NCAR Derecho, TORCH_DIR is configured automatically.
+  On user workstations or custom machines, point TORCH_DIR to your PyTorch
+  or LibTorch installation using one of the following options:
+
+    1. Use your active Python/Conda environment's PyTorch (e.g., ctsm_pylib):
+         ./xmlchange TORCH_DIR=$(python3 -c "import torch; print(torch.__path__[0])")
+    ---- OR ----
+    2. Download and extract standalone LibTorch (CPU) manually:
+         wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-latest.zip -O {installpath}/libtorch.zip
+         unzip {installpath}/libtorch.zip -d {installpath}
+         ./xmlchange TORCH_DIR={installpath}/libtorch
+
+  Then rerun ./case.build.
+"""
 
 
 def parse_command_line(args, description):
@@ -60,29 +77,23 @@ def buildlib(bldroot, installpath, case):
     ftorch_dir = os.path.join(srcroot, "libraries", "FTorch")
     casetools = case.get_value("CASETOOLS")
 
-    # Path to the torch library - usually installed with pyTorch
-    torch_dir = case.get_value("TORCH_DIR")
-    torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
-    if not os.path.isfile(torch_library):
-        torch_dir =  os.path.join(installpath,"libtorch")
-        torch_library = os.path.join(torch_dir, "lib", "libtorch_cpu.so")
-        if not os.path.isfile(torch_library):
-            logger.info("libtorch not found, will attempt to use the nightly build from pytorch")
-            wget_server = WGET("https://download.pytorch.org")
-            zfile = os.path.join(installpath,"libtorch-shared-with-deps-latest.zip")
-            if not os.path.isfile(zfile):
-                wget_server.getfile("libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip", zfile)
-            with zipfile.ZipFile(zfile, 'r') as zip_ref:
-                zip_ref.extractall(installpath)
-        case.set_value("TORCH_DIR", torch_dir)
-
-    expect(torch_dir,"TORCH_DIR not set in XML.\n")
     if case.get_value("USE_FTORCH"):
         use_ftorch = "ON"
+        # Path to the torch library - usually installed with PyTorch
+        torch_dir = case.get_value("TORCH_DIR")
+        expect(
+            torch_dir and os.path.isdir(torch_dir),
+            _MISSING_TORCH_MSG.format(
+                torch_dir=torch_dir if torch_dir else "(not set)",
+                installpath=installpath,
+            ),
+        )
+        cmake_opts = '"-DCMAKE_PREFIX_PATH={} -DUSE_FTORCH={} "'.format(
+            torch_dir, use_ftorch
+        )
     else:
         use_ftorch = "OFF"
-
-    cmake_opts = '"-DCMAKE_PREFIX_PATH={} -DTORCH_LIBRARY={} -DUSE_FTORCH={} "'.format(torch_dir, torch_library, use_ftorch)
+        cmake_opts = '"-DUSE_FTORCH={} "'.format(use_ftorch)
 
     gmake_vars = (
         "CASEROOT={caseroot} COMP_NAME=FTorch "
@@ -108,8 +119,7 @@ def buildlib(bldroot, installpath, case):
 
     # This runs the FTorch cmake command from the cime case Makefile
     cmd = "{} {}".format(gmake_cmd, gmake_opts)
-    if not os.path.isfile(os.path.join(bldroot,"Makefile")):
-        run_bld_cmd_ensure_logging(cmd, logger, from_dir=bldroot)
+    run_bld_cmd_ensure_logging(cmd, logger, from_dir=bldroot)
 
     # This runs the pio make command from the cmake generated Makefile
     run_bld_cmd_ensure_logging(
@@ -117,8 +127,6 @@ def buildlib(bldroot, installpath, case):
         logger,
         from_dir=bldroot,
     )
-
-
 
 
 def _main(argv, documentation):
