@@ -88,11 +88,19 @@ When building a simulation case for CESM the following settings need to be updat
   interface uses no-op routines that abort at runtime.
 - `OS=Linux` - on some systems users need to set this to avoid legacy catamount
   warnings that break dynamic library handling.
+- `TORCH_DIR` - path to a libtorch installation. On supported systems with a
+  libtorch installation (e.g. Derecho) this is configured automatically.
+  Otherwise it can be pointed at any local libtorch install.
+  If not set, `buildlib` will attempt to download the nightly CPU-only libtorch
+  from pytorch.org.
 
 This can be done from the case directory with:
 
 ```
 ./xmlchange USE_FTORCH=True
 ./xmlchange OS=Linux
+./xmlchange TORCH_DIR={installpath}/libtorch
 ./case.setup
 ```
+
+as required.
